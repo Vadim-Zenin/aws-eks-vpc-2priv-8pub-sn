@@ -1,0 +1,717 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon VPC for EKS. 2 Available Zones. 4 public and 1 private subnets per Available Zone.'
+
+Parameters:
+
+  Environment:
+    Type: String
+    Default: stg
+    Description: Environment (test, dev, qa, stg, stg97, uat, prd).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+
+  ClusterName:
+    Description: The cluster name provided when the cluster was created. If it is incorrect, nodes will not be able to join the cluster.
+    Type: String
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+
+  Subnet2octet:
+    Type: Number
+    Default: 96
+    Description: VPC IP range block second octet.
+
+  VpcBlock:
+    Type: String
+    Default: 10.144.0.0/16
+    Description: The CIDR range for the VPC. This should be a valid private (RFC 1918) CIDR range.
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicA1block:
+    Type: String
+    Default: 10.144.0.0/22
+    Description: CidrBlock for subnet Public A1 within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicA2block:
+    Type: String
+    Default: 10.144.4.0/22
+    Description: CidrBlock for subnet Public A2 within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicA3block:
+    Type: String
+    Default: 10.144.8.0/22
+    Description: CidrBlock for subnet Public A3 within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicA4block:
+    Type: String
+    Default: 10.144.12.0/22
+    Description: CidrBlock for subnet Public A4 within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicB1block:
+    Type: String
+    Default: 10.144.16.0/22
+    Description: CidrBlock for subnet Public B1 within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicB2block:
+    Type: String
+    Default: 10.144.20.0/22
+    Description: CidrBlock for subnet Public B2 within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicB3block:
+    Type: String
+    Default: 10.144.24.0/22
+    Description: CidrBlock for subnet Public B3 within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicB4block:
+    Type: String
+    Default: 10.144.28.0/22
+    Description: CidrBlock for subnet Public B4 within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPrivateAblock:
+    Type: String
+    Default: 10.144.192.0/18
+    Description: CidrBlock for subnet Private A within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPrivateBblock:
+    Type: String
+    Default: 10.144.128.0/18
+    Description: CidrBlock for subnet Private B within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "EKS Cluster"
+        Parameters:
+          - Environment
+          - ClusterName
+      -
+        Label:
+          default: "Worker Network Configuration"
+        Parameters:
+          - VpcBlock
+          - SubnetPublicA1block
+          - SubnetPublicA2block
+          - SubnetPublicA3block
+          - SubnetPublicA4block
+          - SubnetPublicB1block
+          - SubnetPublicB2block
+          - SubnetPublicB3block
+          - SubnetPublicB4block
+          - SubnetPrivateAblock
+          - SubnetPrivateBblock
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:  !Ref VpcBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}'
+      - Key: Environment
+        Value: !Ref Environment
+
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-igw'
+
+  VPCGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  NatGatewayElasticIPA:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      Domain: vpc
+
+  NatGatewayA:
+    Type: "AWS::EC2::NatGateway"
+    Properties: 
+      AllocationId: !GetAtt NatGatewayElasticIPA.AllocationId
+      SubnetId: !Ref SubnetPublicA1
+      Tags: 
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-NatGateway-A'
+
+  NatGatewayElasticIPB:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      Domain: vpc
+
+  NatGatewayB:
+    Type: "AWS::EC2::NatGateway"
+    Properties: 
+      AllocationId: !GetAtt NatGatewayElasticIPB.AllocationId
+      SubnetId: !Ref SubnetPublicB1
+      Tags: 
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-NatGateway-B'
+
+  PrivateRouteAtable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-PrivateRoute-A'
+      - Key: Network
+        Value: Private
+      - Key: Environment
+        Value: !Ref Environment
+
+  PrivateRouteBtable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-PrivateRoute-B'
+      - Key: Network
+        Value: Private
+      - Key: Environment
+        Value: !Ref Environment
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-PublicRoute'
+      - Key: Network
+        Value: Public
+      - Key: Environment
+        Value: !Ref Environment
+
+  PublicRoute:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PrivateRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteAtable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayA
+
+  PrivateRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteBtable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayB
+
+  SubnetPublicA1:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public A
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicA1block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicA1"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'shared'
+      - Key: Environment
+        Value: !Ref Environment
+
+  SubnetPublicA2:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public A
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicA2block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicA2"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'shared'
+      - Key: Environment
+        Value: !Ref Environment
+
+  SubnetPublicA3:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public A
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicA3block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicA3"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'shared'
+      - Key: Environment
+        Value: !Ref Environment
+
+  SubnetPublicA4:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public A
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicA4block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicA4"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'shared'
+      - Key: Environment
+        Value: !Ref Environment
+
+  SubnetPublicB1:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public B
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicB1block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicB1"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'shared'
+      - Key: Environment
+        Value: !Ref Environment
+
+  SubnetPublicB2:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public B
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicB2block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicB2"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'shared'
+      - Key: Environment
+        Value: !Ref Environment
+
+  SubnetPublicB3:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public B
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicB3block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicB3"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'shared'
+      - Key: Environment
+        Value: !Ref Environment
+
+  SubnetPublicB4:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public B
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicB4block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicB4"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'shared'
+      - Key: Environment
+        Value: !Ref Environment
+
+  SubnetPrivateA:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Private A
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPrivateAblock
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPrivateA"
+      - Key: Tier
+        Value: 'Private'
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'shared'
+      - Key: kubernetes.io/role/internal-elb
+        Value: '1'
+      - Key: Environment
+        Value: !Ref Environment
+
+  SubnetPrivateB:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Private B
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPrivateBblock
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPrivateB"
+      - Key: Tier
+        Value: 'Private'
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'shared'
+      - Key: kubernetes.io/role/internal-elb
+        Value: '1'
+      - Key: Environment
+        Value: !Ref Environment
+
+  SubnetPublicA1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicA1
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetPublicA2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicA2
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetPublicA3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicA3
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetPublicA4RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicA4
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetPublicB1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicB1
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetPublicB2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicB2
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetPublicB3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicB3
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetPublicB4RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicB4
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetPrivateARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivateA
+      RouteTableId: !Ref PrivateRouteAtable
+
+  SubnetPrivateBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivateB
+      RouteTableId: !Ref PrivateRouteBtable
+
+  ControlPlaneSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Cluster communication with worker nodes
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-ControlPlane"
+      - Key: Environment
+        Value: !Ref Environment
+
+  AdminAccessSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: >-
+        Admins access
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-AdminAccess"
+      SecurityGroupIngress:
+      - IpProtocol: -1
+        CidrIp: 84.203.124.21/32
+        Description: 'Vadim home office'
+
+  WebAccessSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: >-
+        Enable Web HTTP traffic on port 80, HTTPS traffic on port 443
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-WebAccess"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 0.0.0.0/0
+
+  OfficesAccessSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: >-
+        Enable access from offices
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-OfficesAccess"
+      SecurityGroupIngress:
+      - IpProtocol: -1
+        CidrIp: 1.2.3.4/32
+        Description: 'Office 1'
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 4.3.2.1/32
+        Description: 'Office 2'
+      - IpProtocol: tcp
+        FromPort: '8443'
+        ToPort: '8443'
+        CidrIp: 4.3.2.1/32
+        Description: 'Office 2'
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 4.3.2.1/32
+        Description: 'Office 2'
+      - IpProtocol: tcp
+        FromPort: '8080'
+        ToPort: '8080'
+        CidrIp: 4.3.2.1/32
+        Description: 'Office 2'
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 4.3.2.1/32
+        Description: 'Office 2'
+
+  NatAccessSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: >-
+        Enable Web HTTP traffic on port 80, HTTPS traffic on port 443
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-Nat-Access"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 0.0.0.0/0
+
+Outputs:
+
+  VpcId:
+    Description: The VPC Id
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::Region}-${AWS::StackName}-VpcId"
+
+  K8sSubnetIds:
+    Description: All subnets in the VPC
+    Value: !Join [ ",", [ !Ref SubnetPublicA1, !Ref SubnetPublicA2, !Ref SubnetPublicA3, !Ref SubnetPublicA4, !Ref SubnetPublicB1, !Ref SubnetPublicB2, !Ref SubnetPublicB3, !Ref SubnetPublicB4, !Ref SubnetPrivateA, !Ref SubnetPrivateB ] ]
+    Export:
+      Name: !Sub "${AWS::Region}-${AWS::StackName}-K8sSubnetIds"
+
+  AllSubnetIds:
+    Description: All subnets in the VPC
+    Value: !Join [ ",", [ !Ref SubnetPublicA1, !Ref SubnetPublicA2, !Ref SubnetPublicA3, !Ref SubnetPublicA4, !Ref SubnetPublicB1, !Ref SubnetPublicB2, !Ref SubnetPublicB3, !Ref SubnetPublicB4, !Ref SubnetPrivateA, !Ref SubnetPrivateB ] ]
+
+  PublicSubnetIds:
+    Description: Public Subnets in the VPC
+    Value: !Join [ ",", [ !Ref SubnetPublicA1, !Ref SubnetPublicA2, !Ref SubnetPublicA3, !Ref SubnetPublicA4, !Ref SubnetPublicB1, !Ref SubnetPublicB2, !Ref SubnetPublicB3, !Ref SubnetPublicB4] ]
+    Export:
+      Name: !Sub "${AWS::Region}-${AWS::StackName}-PublicSubnetIds"
+
+  PrivateSubnetIds:
+    Description: Private Subnets in the VPC. EKS worker nodes run in private subnets.
+    Value: !Join [ ",", [ !Ref SubnetPrivateA, !Ref SubnetPrivateB] ]
+    Export:
+      Name: !Sub "${AWS::Region}-${AWS::StackName}-PrivateSubnetIds"
+
+  SubnetPublicA1:
+    Description: SubnetPublicA1 in the VPC
+    Value: !Ref SubnetPublicA1
+
+  SubnetPublicA2:
+    Description: SubnetPublicA2 in the VPC
+    Value: !Ref SubnetPublicA2
+
+  SubnetPublicA3:
+    Description: SubnetPublicA3 in the VPC
+    Value: !Ref SubnetPublicA3
+
+  SubnetPublicA4:
+    Description: SubnetPublicA4 in the VPC
+    Value: !Ref SubnetPublicA4
+
+  SubnetPublicB1:
+    Description: SubnetPublicB1 in the VPC
+    Value: !Ref SubnetPublicB1
+
+  SubnetPublicB2:
+    Description: SubnetPublicB2 in the VPC
+    Value: !Ref SubnetPublicB2
+
+  SubnetPublicB3:
+    Description: SubnetPublicB3 in the VPC
+    Value: !Ref SubnetPublicB3
+
+  SubnetPublicB4:
+    Description: SubnetPublicB4 in the VPC
+    Value: !Ref SubnetPublicB4
+
+  SubnetPrivateA:
+    Description: SubnetPrivateA in the VPC
+    Value: !Ref SubnetPrivateA
+
+  SubnetPrivateB:
+    Description: SubnetPrivateB in the VPC
+    Value: !Ref SubnetPrivateB
+
+  ControlPlaneSecurityGroup:
+    Description: Security group for the cluster control plane communication with worker nodes
+    Value: !Join [ ",", [ !Ref ControlPlaneSecurityGroup ] ]
+
+  AdminAccessSecurityGroup:
+    Description: Enable access for administrators
+    Value: !Join [ ",", [ !Ref AdminAccessSecurityGroup ] ]
+
+  OfficesAccessSecurityGroup:
+    Description: Enable access from offices
+    Value: !Join [ ",", [ !Ref OfficesAccessSecurityGroup ] ]
+
+  WebAccessSecurityGroup:
+    Description: Enable Web HTTP traffic on port 80, HTTPS traffic on port 443
+    Value: !Join [ ",", [ !Ref WebAccessSecurityGroup ] ]
+
+  NatAccessSecurityGroup:
+    Description: Enable NAT traffic
+    Value: !Join [ ",", [ !Ref NatAccessSecurityGroup ] ]
